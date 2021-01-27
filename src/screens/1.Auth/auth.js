@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ToastAndroid,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import IonIcon from 'react-native-vector-icons/Ionicons';
 import {endpoint} from '../../endpoint';
@@ -29,6 +30,7 @@ class Auth extends PureComponent {
       passwordSecure: true,
       loading: false,
       wilayah_id: kecamatan[0].nama,
+      modalForget: false,
     };
   }
 
@@ -154,6 +156,47 @@ class Auth extends PureComponent {
       });
   }
 
+  forgetPass() {
+    this.setState({loading: true});
+    const {email} = this.state;
+
+    let data = {
+      email: email,
+    };
+
+    let form = new FormData();
+
+    for (var key in data) {
+      form.append(key, data[key]);
+    }
+
+    console.log('ini form forget : ', form);
+
+    fetch(endpoint.forget_password, {
+      method: 'POST',
+      body: form,
+    })
+      .then((res) => res.json())
+      .then((resJson) => {
+        console.log('ini resJson forget : ', resJson);
+        if (resJson.status === 'success') {
+          ToastAndroid.show(
+            'Link reset password sudah dikirim ke email anda!',
+            4500,
+          );
+          this.setState({loading: false});
+        } else {
+          ToastAndroid.show(JSON.stringify(resJson), 1500);
+          this.setState({loading: false});
+        }
+      })
+      .catch((err) => {
+        console.log('catch login == ', err);
+        ToastAndroid.show('Ada yang salah, silahkan coba lagi', 1500);
+        this.setState({loading: false});
+      });
+  }
+
   passwordCheck = (a, b) => {
     if (a === b) {
       return {
@@ -169,6 +212,44 @@ class Auth extends PureComponent {
   MasukBox = () => {
     return (
       <ScrollView contentContainerStyle={styles.scrollview}>
+        {/* -----Modal Forget password----- */}
+        <Modal
+          transparent={true}
+          visible={this.state.modalForget}
+          statusBarTranslucent={true}
+          animationType={'fade'}
+          onRequestClose={() => this.setState({modalForget: false})}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => this.setState({modalForget: false})}
+            style={styles.forgetCont}>
+            <View style={styles.loginbox}>
+              <Text style={styles.boxTitle}>Lupa Password</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType={'email-address'}
+                autoCapitalize={'none'}
+                autoCompleteType={'email'}
+                placeholder={'Email Anda'}
+                value={this.state.email}
+                underlineColorAndroid={'#12a548'}
+                onChangeText={(text) => this.setState({email: text})}
+              />
+              <TouchableOpacity
+                style={styles.signInButton}
+                onPress={() => this.forgetPass()}>
+                {this.state.loading ? (
+                  <ActivityIndicator size={20} color={'white'} />
+                ) : (
+                  <Text style={styles.buttonText}>Kirim</Text>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.questionText}>
+                Link reset akan dikirim ke email anda
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Modal>
         <View style={styles.loginbox}>
           <Text style={styles.boxTitle}>Halo</Text>
           <TextInput
@@ -202,6 +283,11 @@ class Auth extends PureComponent {
               }
             />
           </View>
+          <Text
+            onPress={() => this.setState({modalForget: true})}
+            style={styles.forgetText}>
+            Lupa Password
+          </Text>
           <TouchableOpacity
             style={styles.signInButton}
             onPress={() => this.handleLogin()}>
@@ -362,11 +448,22 @@ class Auth extends PureComponent {
 export default Auth;
 
 const styles = StyleSheet.create({
+  forgetText: {
+    color: 'gray',
+    textAlign: 'right',
+    width: '100%',
+  },
   scrollview: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2e995594',
+  },
+  forgetCont: {
+    backgroundColor: '#00000087',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loginbox: {
     width: '90%',

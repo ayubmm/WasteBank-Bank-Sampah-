@@ -37,20 +37,33 @@ class Splash extends Component {
     })
       .then((res) => res.json())
       .then((resJson) => {
-        console.log('ini resjson getnasabah == ', resJson);
+        // console.log('ini resjson getnasabah == ', resJson);
         if (resJson.status === 'success') {
           this.props.changeUser(resJson);
           if (resJson.role === 6) {
             this.props.navigation.replace('Home_Nasabah');
+          } else if (resJson.role === 5) {
+            this.props.navigation.replace('Home_Pengurus2');
+          } else if (resJson.role === 4) {
+            this.props.navigation.replace('Home_Pengurus1');
+          } else if (resJson.role === 3) {
+            this.props.navigation.replace('Home_CS');
           }
         } else {
-          this.getNasabah();
+          AsyncStorage.removeItem('token', () => {
+            this.props.navigation.replace('Auth');
+          }).catch((e) => console.log('catch async remove ==', e));
+
+          ToastAndroid.show(
+            'Maaf gagal mengambil data!\nToken dihapus.Silahkan mulai ulang aplikasi!',
+            10000,
+          );
         }
       })
       .catch((err) => {
         console.log('catch getNasabah == ', err);
         ToastAndroid.show(
-          'Maaf gagal mengambil data!\nSilahkan mulai ulang aplkasi!',
+          'Maaf terjadi kesalahan!\nSilahkan mulai ulang aplkasi!',
           10000,
         );
       });
