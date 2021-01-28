@@ -5,6 +5,7 @@ import {
   View,
   ActivityIndicator,
   StyleSheet,
+  StatusBar,
   ToastAndroid,
 } from 'react-native';
 import {connect} from 'react-redux';
@@ -16,6 +17,7 @@ class Splash extends Component {
       AsyncStorage.getItem('token')
         .then((res) => {
           if (res) {
+            console.log('ini token async = ', res);
             this.props.changeUser({token: res});
             this.getNasabah(res);
           } else {
@@ -37,7 +39,7 @@ class Splash extends Component {
     })
       .then((res) => res.json())
       .then((resJson) => {
-        // console.log('ini resjson getnasabah == ', resJson);
+        console.log('ini resjson getnasabah == ', resJson);
         if (resJson.status === 'success') {
           this.props.changeUser(resJson);
           if (resJson.role === 6) {
@@ -72,6 +74,11 @@ class Splash extends Component {
   render() {
     return (
       <View style={styles.container}>
+         <StatusBar
+          translucent
+          barStyle={'light-content'}
+          backgroundColor={'#ffffff00'}
+        />
         <Text style={styles.splash}> Splash </Text>
         <ActivityIndicator color={'white'} size={40} />
       </View>

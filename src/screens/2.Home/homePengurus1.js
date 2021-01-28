@@ -692,7 +692,7 @@ class HomePengurus1 extends Component {
             </ScrollView>
           </TouchableOpacity>
         </Modal>
-        {/* ------Modal untuk edit profile------ */}
+        {/* ------Modal untuk loading------ */}
         <Modal
           transparent={true}
           visible={this.state.loading}

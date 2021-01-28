@@ -13,6 +13,7 @@ import {
   ToastAndroid,
   TextInput,
   StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
 import IonIcon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -36,6 +37,8 @@ class HomeNasabah extends Component {
       modalEditProf: false,
       modalEditAddress: false,
       modalAddAddress: false,
+      modalChat: false,
+      modalContacts: false,
       keterangan: 'Jemput',
       allAlamat: this.props.user.alamat,
       lokasi: this.mainAddress(),
@@ -55,8 +58,10 @@ class HomeNasabah extends Component {
       address_id: null,
       allRequest: [],
       modalRequest: false,
-      cs_id: null,
       cs_contacts: [],
+      currContact: {},
+      currChat: [],
+      chat: '',
     };
   }
 
@@ -108,12 +113,47 @@ class HomeNasabah extends Component {
       console.log('ini resjson pesan2 ku == ', resJson);
 
       if (resJson.status === 'success') {
-        this.setState({loading: false});
+        this.setState({loading: false, currChat: resJson.data});
       }
     } catch (err) {
       this.setState({loading: false});
       console.log('catch pesanku == ', err);
       ToastAndroid.show('Maaf gagal mengambil data pesan!', 2000);
+    }
+  }
+
+  async sendMessages(id) {
+    console.log('mulai kirim pesan');
+
+    try {
+      let form = new FormData();
+
+      form.append('message', this.state.chat);
+
+      this.setState({chat: ''});
+
+      let myOptions = {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.props.user.token}`,
+        },
+        body: form,
+      };
+
+      let response = await fetch(endpoint.pesan_ku + id, myOptions);
+
+      let resJson = await response.json();
+
+      console.log('ini resjson kirim pesan == ', resJson);
+
+      if (resJson.status === 'success') {
+        this.setState({loading: false});
+        this.getMessages(id);
+      }
+    } catch (err) {
+      this.setState({loading: false});
+      console.log('catch kirim pesan == ', err);
+      ToastAndroid.show('Maaf gagal mengirim data pesan!', 2000);
     }
   }
 
@@ -157,8 +197,6 @@ class HomeNasabah extends Component {
             allAlamat: resJson.alamat,
             lokasi: this.mainAddress(),
           });
-        } else {
-          this.getNasabah();
         }
       })
       .catch((err) => {
@@ -532,6 +570,28 @@ class HomeNasabah extends Component {
     }).catch((e) => console.log('catch error async logout', e));
   };
 
+  openChat = (user) => {
+    console.log('ini user openchat', user);
+    this.setState(
+      {
+        currContact: user,
+      },
+      () => {
+        this.setState({modalChat: true});
+        this.getMessages(this.state.currContact.id);
+      },
+    );
+  };
+
+  activeCS = () => {
+    let contact = '';
+
+    if (this.state.currContact.name) {
+      contact = this.state.currContact.name;
+    }
+    return contact;
+  };
+
   render() {
     const {avatar, name, no_telpon, email} = this.props.user.data;
     return (
@@ -542,13 +602,20 @@ class HomeNasabah extends Component {
           backgroundColor={'#ffffff00'}
         />
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => this.setState({modalProfile: true})}
-            activeOpacity={0.8}
-            style={styles.s_profile}>
-            <Image source={{uri: avatar}} style={styles.s_profile} />
-          </TouchableOpacity>
-          <Text style={styles.hi_text}> Hi {name}!</Text>
+          <View style={styles.headerProf}>
+            <TouchableOpacity
+              onPress={() => this.setState({modalProfile: true})}
+              activeOpacity={0.8}
+              style={styles.s_profile}>
+              <Image source={{uri: avatar}} style={styles.s_profile} />
+            </TouchableOpacity>
+            <Text style={styles.hi_text}> Hi {name}!</Text>
+          </View>
+          <IonIcon
+            onPress={() => this.setState({modalContacts: true})}
+            name={'chatbubble-ellipses-outline'}
+            size={45}
+          />
         </View>
         <View style={styles.balanceCont}>
           <Text style={styles.balanceTitle}>Saldo anda</Text>
@@ -574,26 +641,84 @@ class HomeNasabah extends Component {
           />
           <Text style={styles.requestButton}>Permintaan Sampah</Text>
         </TouchableOpacity>
+        {/* ------Modal untuk Chat------ */}
+        <Modal
+          transparent={true}
+          statusBarTranslucent={true}
+          visible={this.state.modalChat}
+          animationType={'fade'}
+          onRequestClose={() =>
+            this.setState({modalChat: false, currChat: [], currContact: {}})
+          }>
+          <KeyboardAvoidingView behavior={'padding'} style={styles.chatCont}>
+            <ScrollView contentContainerStyle={styles.contactsScroll}>
+              <Text style={styles.contactsTitle}>{this.activeCS()}</Text>
+              {this.state.currChat.map((v, i) => {
+                let pos =
+                  // eslint-disable-next-line eqeqeq
+                  v.from == this.props.user.data.id
+                    ? {alignItems: 'flex-end'}
+                    : {alignItems: 'flex-start'};
+
+                return (
+                  <View key={i} style={[styles.chatBubCont, pos]}>
+                    <TouchableOpacity
+                      onPress={() => {}}
+                      activeOpacity={0.95}
+                      style={styles.chatList}>
+                      <Text style={styles.addressListNumber}>{v.message}</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.chatInputCont}>
+              <TextInput
+                multiline
+                value={this.state.chat}
+                onChangeText={(text) => this.setState({chat: text})}
+                style={styles.chatInput}
+              />
+              <TouchableOpacity
+                onPress={() => this.sendMessages(this.state.currContact.id)}
+                activeOpacity={0.9}
+                style={styles.sendButton}>
+                <Text style={styles.sendButtonText}>SEND</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
         {/* ------Modal untuk Kontak CS------ */}
         <Modal
           transparent={true}
           statusBarTranslucent={true}
-          visible={true}
+          visible={this.state.modalContacts}
           animationType={'fade'}
-          onRequestClose={() => this.setState({modalContacts: false})}>
+          onRequestClose={() =>
+            this.setState({modalContacts: false, currChat: []})
+          }>
           <ScrollView contentContainerStyle={styles.contactsScroll}>
             <Text style={styles.contactsTitle}>Customer Service</Text>
             {this.state.cs_contacts.map((v, i) => {
               return (
                 <TouchableOpacity
-                  onPress={() => {}}
+                  onPress={() => this.openChat(v.user)}
                   activeOpacity={0.95}
                   style={styles.addressList}
                   key={i}>
-                  <Text style={styles.addressListNumber}>
-                    Kontak {(i + 1).toString()}
-                  </Text>
-                  <Text>{v.user.name}</Text>
+                  <View style={styles.contactRow}>
+                    <View>
+                      <Text style={styles.addressListNumber}>
+                        Kontak {(i + 1).toString()}
+                      </Text>
+                      <Image
+                        source={{uri: v.user.avatar}}
+                        style={styles.s_profile}
+                      />
+                      <Text>{v.user.name}</Text>
+                    </View>
+                    <IonIcon name={'chevron-forward'} size={55} />
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -990,7 +1115,7 @@ class HomeNasabah extends Component {
                   return (
                     <TouchableOpacity
                       activeOpacity={0.8}
-                      style={styles.addressList}
+                      style={styles.requestList}
                       key={i}>
                       <View style={styles.addressListHead}>
                         <Text style={styles.addressListNumber}>
@@ -1045,6 +1170,64 @@ class HomeNasabah extends Component {
 }
 
 const styles = StyleSheet.create({
+  chatList: {
+    width: '80%',
+    padding: 15,
+    backgroundColor: '#c2c2c2',
+    borderRadius: 10,
+    marginVertical: 5,
+    elevation: 4,
+  },
+  requestList: {
+    padding: 5,
+    margin: 10,
+    backgroundColor: '#efefef',
+    borderRadius: 5,
+  },
+  headerProf: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatCont: {
+    flex: 1,
+  },
+  sendButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  sendButton: {
+    marginLeft: 5,
+    height: 50,
+    backgroundColor: 'green',
+    padding: 5,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatInputCont: {
+    width: '100%',
+    maxHeight: 200,
+    padding: 5,
+    flexDirection: 'row',
+    backgroundColor: 'white',
+  },
+  chatInput: {
+    borderWidth: 1,
+    borderColor: 'green',
+    flex: 1,
+    borderRadius: 5,
+  },
+  chatBubCont: {
+    width: '100%',
+    marginVertical: 5,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   contactsTitle: {
     fontSize: 20,
     marginBottom: 15,
@@ -1088,6 +1271,7 @@ const styles = StyleSheet.create({
     marginTop: 25,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   s_profile: {
     width: 65,
