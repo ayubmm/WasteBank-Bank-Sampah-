@@ -26,10 +26,10 @@ export const endpoint = {
     'https://waste-bank.herokuapp.com/api/ubah/alamat/utama/', //{id}    get
   // tombol
 
-  kontak_chats: 'https://waste-bank.herokuapp.com/api/nasabah/kontak_penjual', //get
+  kontak_chats: 'https://waste-bank.herokuapp.com/api/kontak', //get
   // ini buat dapetin kontak yang pernah saya chat
 
-  tambah_cs: 'https://waste-bank.herokuapp.com/api/nasabah/kontak_penjual/add', //get
+  tambah_cs: 'https://waste-bank.herokuapp.com/api/nasabah/kontak/add', //get
   // ini buat nambah chat baru
 
   pesan_ku: 'https://waste-bank.herokuapp.com/api/message/', //{id}, //get
@@ -37,6 +37,8 @@ export const endpoint = {
 
   pesan_kirim: 'https://waste-bank.herokuapp.com/api/message/', //{id}                //post
   //  ini yang dikirim messagenya aja nah idnya di dapet dari kontak
+
+  tabungan: 'https://waste-bank.herokuapp.com/api/nasabah/tabungan', //get
 
   // Fitur Pengurus 1
 
@@ -78,4 +80,7 @@ export const endpoint = {
   // ini data gudangnya
   pengurus2_gudang:
     'https://waste-bank.herokuapp.com/api/pengurus2/get_gudang ', //get
+
+  cs_kontak_nasabah: 'https://waste-bank.herokuapp.com/api/cs/kontak/add', //get
+  // ini buat nambah chat baru buat cs
 };

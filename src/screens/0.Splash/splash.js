@@ -7,9 +7,11 @@ import {
   StyleSheet,
   StatusBar,
   ToastAndroid,
+  Image,
 } from 'react-native';
 import {connect} from 'react-redux';
 import {endpoint} from '../../endpoint';
+import clearLogo from '../../assets/logo/clear_logo.png';
 
 class Splash extends Component {
   componentDidMount = () => {
@@ -28,7 +30,7 @@ class Splash extends Component {
           console.log('Catch dari async get token', e);
           ToastAndroid.show('Maaf Async get token gagal!', 1000);
         });
-    }, 600);
+    }, 1300);
   };
 
   getNasabah = (token) => {
@@ -74,12 +76,12 @@ class Splash extends Component {
   render() {
     return (
       <View style={styles.container}>
-         <StatusBar
+        <StatusBar
           translucent
           barStyle={'light-content'}
           backgroundColor={'#ffffff00'}
         />
-        <Text style={styles.splash}> Splash </Text>
+        <Image style={{width: 200, height: 200}} source={clearLogo} />
         <ActivityIndicator color={'white'} size={40} />
       </View>
     );

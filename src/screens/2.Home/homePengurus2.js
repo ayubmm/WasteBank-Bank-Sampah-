@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import {endpoint} from '../../endpoint';
 import IonIcon from 'react-native-vector-icons/Ionicons';
+import AntDesign from 'react-native-vector-icons/AntDesign';
 import {connect} from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {launchImageLibrary} from 'react-native-image-picker';
@@ -39,6 +40,7 @@ class HomePengurus2 extends Component {
       modalEditAddress: false,
       modalAddAddress: false,
       modalBuyer: false,
+      modalHistory: false,
       input: 1,
       allAlamat: this.props.user.alamat,
       lokasi: this.mainAddress(),
@@ -62,6 +64,7 @@ class HomePengurus2 extends Component {
       weightInput: '',
       buyer: '',
       gudang: [],
+      history: [],
     };
   }
 
@@ -324,6 +327,7 @@ class HomePengurus2 extends Component {
   };
 
   sendData = () => {
+    this.setState({loading: true});
     console.log('mulai kirim penjualan');
 
     let form = new FormData();
@@ -347,7 +351,15 @@ class HomePengurus2 extends Component {
       .then((resJson) => {
         console.log('ini resjson dari penjualan', resJson);
         if (resJson.status === 'success') {
-          this.setState({modalDataInput: false, inputData: []});
+          this.setState(
+            {
+              modalDataInput: false,
+              modalBuyer: false,
+              inputData: [],
+              loading: false,
+            },
+            () => this.componentDidMount(),
+          );
           ToastAndroid.show('Penjualan berhasil!', 1500);
         }
       })
@@ -368,7 +380,7 @@ class HomePengurus2 extends Component {
       .then((resJson) => {
         console.log('ini history == ', resJson);
         if (resJson.status === 'success') {
-          this.setState({});
+          this.setState({history: resJson.data});
         }
       })
       .catch((err) => {
@@ -389,7 +401,8 @@ class HomePengurus2 extends Component {
       .then((resJson) => {
         console.log('ini gudang == ', resJson);
         if (resJson.status === 'success') {
-          this.setState({gudang: resJson.data, loading: false});
+          let gudang = resJson.data.sort((a, b) => a.id - b.id);
+          this.setState({gudang: gudang, loading: false});
         }
       })
       .catch((err) => {
@@ -454,12 +467,9 @@ class HomePengurus2 extends Component {
       return Math.max(acc, num);
     }, 0);
 
-    console.log('ini max nya = ', max);
-
     let result = this.state.gudang.map((el) => {
       let num = parseFloat(el.berat);
       if (num !== 0) {
-        console.log('ini berat gudang == ', num);
         return ((num / max) * 85).toString() + '%';
       }
 
@@ -484,12 +494,6 @@ class HomePengurus2 extends Component {
           </Text>
         </View>
 
-        <View style={styles.balanceCont}>
-          <Text style={styles.balanceTitle}>Saldo anda</Text>
-          <Text numberOfLines={1} style={styles.balance}>
-            Rp.{this.props.user.saldo.saldo}
-          </Text>
-        </View>
         <View style={styles.chartBoxCont}>
           {this.state.gudang.map((v, i) => {
             console.log('ini result map nya = ', result);
@@ -526,9 +530,9 @@ class HomePengurus2 extends Component {
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.button}
-            onPress={() => this.setState({modalDataInput: true})}>
-            <IonIcon name={'trash'} color={'green'} size={55} />
-            <Text style={styles.requestButton}>Jual Sampah</Text>
+            onPress={() => this.setState({modalHistory: true})}>
+            <AntDesign name={'book'} color={'green'} size={55} />
+            <Text style={styles.requestButton}>Riwayat</Text>
           </TouchableOpacity>
         </View>
         {/* -----Modal Pembelinya----- */}
@@ -564,7 +568,7 @@ class HomePengurus2 extends Component {
             </View>
           </TouchableOpacity>
         </Modal>
-        {/* ------Modal Pendataan------ */}
+        {/* ------Modal Penjualan------ */}
         <Modal
           transparent={true}
           visible={this.state.modalDataInput}
@@ -596,7 +600,16 @@ class HomePengurus2 extends Component {
               <Button
                 title={'Jual'}
                 color={'blue'}
-                onPress={() => this.setState({modalBuyer: true})}
+                onPress={() => {
+                  if (this.state.inputData.length > 0) {
+                    this.setState({modalBuyer: true});
+                  } else {
+                    ToastAndroid.show(
+                      'Masukkan data penjualan terlebih dahulu!',
+                      1500,
+                    );
+                  }
+                }}
               />
             </View>
             <Text style={styles.totalPrice}>
@@ -816,12 +829,83 @@ class HomePengurus2 extends Component {
             <ActivityIndicator size={45} color={'green'} />
           </View>
         </Modal>
+        {/* ------Modal untuk list riwayat jual------ */}
+        <Modal
+          transparent={true}
+          visible={this.state.modalHistory}
+          statusBarTranslucent={true}
+          animationType={'fade'}
+          onRequestClose={() => this.setState({modalHistory: false})}>
+          <TouchableOpacity
+            onPress={() => this.setState({modalHistory: false})}
+            activeOpacity={1}
+            style={styles.formContainer}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.requestScrollCont}>
+              <Text style={styles.HistoryListTitle}>Riwayat Penjualan</Text>
+              <ScrollView contentContainerStyle={styles.addressScroll}>
+                {this.state.history.map((v, i) => {
+                  return (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={styles.historyList}
+                      key={i}>
+                      <View style={styles.addressListHead}>
+                        <Text style={styles.addressListNumber}>
+                          ID Riwayat {v.id.toString()}
+                        </Text>
+                      </View>
+                      <View style={styles.formTextCont}>
+                        <Text style={styles.formTextLeft}>Pembeli</Text>
+                        <Text style={styles.formTextMid}>:</Text>
+                        <Text style={styles.formTextRight}>{v.pembeli}</Text>
+                      </View>
+                      <View style={styles.formTextCont}>
+                        <Text style={styles.formTextLeft}>Tanggal</Text>
+                        <Text style={styles.formTextMid}>:</Text>
+                        <Text style={styles.formTextRight}>{v.created_at}</Text>
+                      </View>
+                      <View style={styles.formTextCont}>
+                        <Text style={styles.formTextLeft}>Berat</Text>
+                        <Text style={styles.formTextMid}>:</Text>
+                        <Text style={styles.formTextRight}>{v.berat}kg</Text>
+                      </View>
+                      <View style={styles.formTextCont}>
+                        <Text style={styles.formTextLeft}>Pendapatan</Text>
+                        <Text style={styles.formTextMid}>:</Text>
+                        <Text style={styles.formTextRight}>
+                          Rp.{v.pendapatan}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </View>
     );
   }
 }
 
 const styles = StyleSheet.create({
+  HistoryListTitle: {
+    fontSize: 25,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginVertical: 10,
+    color: 'green',
+  },
+  historyList: {
+    width: '100%',
+    backgroundColor: '#eee',
+    padding: 5,
+    marginVertical: 5,
+    borderRadius: 5,
+    elevation: 5,
+  },
   balanceTitle: {
     color: '#333333',
     fontSize: 16,
@@ -859,7 +943,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 300,
     flexDirection: 'row',
-    backgroundColor: '#f2f2f2',
+    backgroundColor: '#fff',
     borderRadius: 10,
     padding: 5,
   },
@@ -920,7 +1004,7 @@ const styles = StyleSheet.create({
   },
   scrollViewCont: {
     width: '100%',
-    padding: 5,
+    paddingVertical: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
@@ -1168,6 +1252,7 @@ const styles = StyleSheet.create({
   },
 
   requestScrollCont: {
+    minWidth: '90%',
     minHeight: 600,
     marginHorizontal: 5,
     marginVertical: 40,

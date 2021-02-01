@@ -732,6 +732,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000000c7',
+    flex: 1,
   },
   s_profile: {
     width: 65,

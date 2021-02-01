@@ -2,46 +2,62 @@ import React, {Component} from 'react';
 import {
   Text,
   View,
-  TouchableOpacity,
-  ToastAndroid,
   StyleSheet,
-  ActivityIndicator,
-  TextInput,
-  Modal,
   ScrollView,
-  StatusBar,
   Image,
+  TouchableOpacity,
+  Modal,
   Button,
   Alert,
+  ActivityIndicator,
+  ToastAndroid,
+  TextInput,
+  StatusBar,
   KeyboardAvoidingView,
 } from 'react-native';
-import {endpoint} from '../../endpoint';
 import IonIcon from 'react-native-vector-icons/Ionicons';
-import AntDesign from 'react-native-vector-icons/AntDesign';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {connect} from 'react-redux';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {launchImageLibrary} from 'react-native-image-picker';
 import {Picker} from '@react-native-picker/picker';
+import {kecamatan} from '../../kecamatanBantul';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {endpoint} from '../../endpoint';
+import {launchImageLibrary} from 'react-native-image-picker';
+import Pusher from 'pusher-js/react-native';
+
+// Enable pusher logging - don't include this in production
+// Pusher.logToConsole = true;
+
+var pusher = new Pusher('594d7839a80853fb4e7b', {
+  cluster: 'ap1',
+});
 
 class HomeCS extends Component {
   constructor(props) {
     super(props);
-    const {avatar, name, email, no_telpon} = this.props.user.data;
+
+    var channel = pusher.subscribe('my-channel');
+    channel.bind('my-event', (data) => {
+      this.getMessages(data.to);
+    });
+
+    const {avatar, name, no_telpon, email} = this.props.user.data;
 
     this.state = {
-      loading: false,
-      modalDataInput: false,
-      allRequest: [],
-      request_id: null,
       modalProfile: false,
       modalForm: false,
       modalAddress: false,
       modalEditProf: false,
       modalEditAddress: false,
       modalAddAddress: false,
-      input: 1,
+      modalChat: false,
+      modalContacts: false,
+      modalActiveChat: false,
+      keterangan: 'Jemput',
       allAlamat: this.props.user.alamat,
       lokasi: this.mainAddress(),
+      loading: false,
+      loadChat: true,
       modalChooseMode: false,
       username: name,
       email: email,
@@ -55,13 +71,205 @@ class HomeCS extends Component {
       imageFile: {name: 'default', type: 'image/jpeg', uri: avatar},
       modalEditing: false,
       address_id: null,
+      allRequest: [],
       modalRequest: false,
-      inputData: [],
-      jenisSampah: this.getChoices(),
-      weight: '0',
-      weightInput: '',
+      nas_contacts: [],
+      active_contacts: [],
+      currContact: {},
+      currChat: [],
+      chat: '',
     };
   }
+
+  componentDidMount = () => {
+    this.getNasContacts();
+    this.getActiveContacts();
+  };
+
+  mainAddress = () => {
+    let home = this.props.user.alamat.filter((v) => {
+      return v.status === 1;
+    });
+
+    return home[0];
+  };
+
+  async getActiveContacts() {
+    this.setState({loadChat: true});
+    console.log('mulai ambil kontak yang aktif');
+
+    try {
+      let myOptions = {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.props.user.token}`,
+        },
+      };
+
+      let response = await fetch(endpoint.kontak_chats, myOptions);
+
+      let resJson = await response.json();
+
+      console.log('ini kontak aktifnya == ', resJson);
+
+      if (resJson.status === 'success') {
+        this.setState({loadChat: false, active_contacts: resJson.data});
+      }
+    } catch (err) {
+      this.setState({loadChat: false});
+      console.log('catch kontak aktif == ', err);
+      ToastAndroid.show('Maaf gagal mengambil data kontak aktif!', 2000);
+    }
+  }
+
+  async getNasContacts() {
+    this.setState({loadChat: true});
+    console.log('mulai ambil kontak nasabah');
+
+    try {
+      let myOptions = {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.props.user.token}`,
+        },
+      };
+
+      let response = await fetch(endpoint.cs_kontak_nasabah, myOptions);
+
+      let resJson = await response.json();
+
+      console.log('ini kontak nasabah == ', resJson);
+
+      if (resJson.status === 'success') {
+        this.setState({
+          loading: false,
+          loadChat: false,
+          nas_contacts: resJson.data,
+        });
+      }
+    } catch (err) {
+      this.setState({loadChat: false});
+      console.log('catch kontak nasabah == ', err);
+      ToastAndroid.show('Maaf gagal mengambil data kontak!!', 2000);
+    }
+  }
+
+  async getMessages(id) {
+    this.setState({loadChat: true});
+    console.log('mulai ambil pesan2');
+
+    try {
+      let myOptions = {
+        headers: {
+          Authorization: `Bearer ${this.props.user.token}`,
+        },
+      };
+
+      let response = await fetch(endpoint.pesan_ku + id, myOptions);
+
+      let resJson = await response.json();
+
+      console.log('ini resjson pesan2 ku == ', resJson);
+
+      if (resJson.status === 'success') {
+        this.setState({loadChat: false, currChat: resJson.data});
+      }
+    } catch (err) {
+      this.setState({loading: false});
+      console.log('catch pesanku == ', err);
+      ToastAndroid.show('Maaf gagal mengambil data pesan!', 2000);
+    }
+  }
+
+  async sendMessages(id) {
+    this.setState({loadChat: true});
+    console.log('mulai kirim pesan');
+
+    try {
+      let form = new FormData();
+
+      form.append('message', this.state.chat);
+
+      this.setState({chat: ''});
+
+      let myOptions = {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.props.user.token}`,
+        },
+        body: form,
+      };
+
+      let response = await fetch(endpoint.pesan_ku + id, myOptions);
+
+      let resJson = await response.json();
+
+      console.log('ini resjson kirim pesan == ', resJson);
+
+      if (resJson.status === 'success') {
+        this.setState({loadChat: false});
+        this.getMessages(id);
+      }
+    } catch (err) {
+      this.setState({loadChat: false});
+      console.log('catch kirim pesan == ', err);
+      ToastAndroid.show('Maaf gagal mengirim data pesan!', 2000);
+    }
+  }
+
+  getProfile = () => {
+    fetch(endpoint.profile_home, {
+      headers: {
+        Authorization: `Bearer ${this.props.user.token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((resJson) => {
+        console.log('ini resjson getnasabah == ', resJson);
+        if (resJson.status === 'success') {
+          this.props.changeUser(resJson);
+          this.setState({
+            allAlamat: resJson.alamat,
+            lokasi: this.mainAddress(),
+          });
+        }
+      })
+      .catch((err) => {
+        console.log('catch getNasabah == ', err);
+        ToastAndroid.show(
+          'Maaf gagal mengambil data!\nSilahkan mulai ulang aplkasi!',
+          10000,
+        );
+      });
+  };
+
+  handleSubmit = () => {
+    Alert.alert(
+      'Apakah anda yakin?',
+      'Pastikan data yang anda masukkan benar.',
+      [
+        {
+          text: 'Batal',
+        },
+        {
+          text: 'Lanjutkan',
+          onPress: this.makeRequest,
+        },
+      ],
+    );
+  };
+
+  handleLogout = () => {
+    Alert.alert('Logout', 'Apakah anda yakin untuk logout?', [
+      {
+        text: 'Batal',
+      },
+      {
+        text: 'Lanjutkan',
+        onPress: this.logout,
+      },
+    ]);
+  };
 
   handleChoosePhoto = () => {
     let options = {
@@ -80,18 +288,6 @@ class HomeCS extends Component {
         ToastAndroid.show('File gambar terlalu besar', 1200);
       }
     });
-  };
-
-  handleLogout = () => {
-    Alert.alert('Logout', 'Apakah anda yakin untuk logout?', [
-      {
-        text: 'Batal',
-      },
-      {
-        text: 'Lanjutkan',
-        onPress: this.logout,
-      },
-    ]);
   };
 
   handleEditProfile = () => {
@@ -156,34 +352,6 @@ class HomeCS extends Component {
       });
   };
 
-  getProfile = () => {
-    fetch(endpoint.profile_home, {
-      headers: {
-        Authorization: `Bearer ${this.props.user.token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((resJson) => {
-        console.log('ini resjson getnasabah == ', resJson);
-        if (resJson.status === 'success') {
-          this.props.changeUser(resJson);
-          this.setState({
-            allAlamat: resJson.alamat,
-            lokasi: this.mainAddress(),
-          });
-        } else {
-          this.getNasabah();
-        }
-      })
-      .catch((err) => {
-        console.log('catch getNasabah == ', err);
-        ToastAndroid.show(
-          'Maaf gagal mengambil data!\nSilahkan mulai ulang aplkasi!',
-          10000,
-        );
-      });
-  };
-
   logout = () => {
     console.log('logout....');
     AsyncStorage.removeItem('token', () => {
@@ -192,368 +360,208 @@ class HomeCS extends Component {
     }).catch((e) => console.log('catch error async logout', e));
   };
 
-  mainAddress = () => {
-    let home = this.props.user.alamat.filter((v) => {
-      return v.status === 1;
-    });
-
-    return home[0];
-  };
-
-  getChoices() {
-    return [
+  openChat = (user) => {
+    console.log('ini user openchat', user);
+    this.setState(
       {
-        created_at: null,
-        harga_nasabah: 3000,
-        harga_pengepul: 3300,
-        id: 1,
-        nama: 'Plastik',
-        updated_at: null,
+        currContact: user,
       },
-      {
-        created_at: null,
-        harga_nasabah: 7000,
-        harga_pengepul: 7700,
-        id: 2,
-        nama: 'Besi',
-        updated_at: null,
+      () => {
+        this.setState({modalChat: true});
+        this.getMessages(this.state.currContact.id);
       },
-      {
-        created_at: null,
-        harga_nasabah: 4000,
-        harga_pengepul: 4400,
-        id: 3,
-        nama: 'Kaleng',
-        updated_at: null,
-      },
-      {
-        created_at: null,
-        harga_nasabah: 6000,
-        harga_pengepul: 6600,
-        id: 4,
-        nama: 'Kertas',
-        updated_at: null,
-      },
-    ];
-  }
-
-  componentDidMount = () => {
-    this.getPermintaan();
+    );
   };
 
-  async getPermintaan() {
-    this.setState({loading: true});
-    try {
-      let myOptions = {
-        headers: {
-          Authorization: `Bearer ${this.props.user.token}`,
-        },
-      };
+  activeCS = () => {
+    let contact = '';
 
-      let response = await fetch(endpoint.pengurus1_request, myOptions);
-
-      let resJson = await response.json();
-
-      console.log('ini resjson get permintaan pengurus 1 == ', resJson);
-
-      if (resJson.status === 'success') {
-        this.setState({allRequest: resJson.data, loading: false});
-      }
-    } catch (err) {
-      this.setState({loading: false});
-      console.log('catch get permintaan == ', err);
-      ToastAndroid.show('Maaf gagal mengambil data permintaan!!', 2000);
+    if (this.state.currContact.name) {
+      contact = this.state.currContact.name;
     }
-  }
-
-  newItem = (id) => {
-    let result = this.state.jenisSampah.filter((v) => {
-      return v.id === id;
-    });
-
-    return {...result[0], berat: this.state.weightInput};
-  };
-
-  addData = () => {
-    const {input, weightInput} = this.state;
-    console.log('panjang weight input == ', weightInput.split('.').length);
-    if (
-      input &&
-      weightInput &&
-      weightInput[0] !== '.' &&
-      weightInput.split('.').length < 3 &&
-      (weightInput[0] !== '0' ||
-        (weightInput[1] === '.' && weightInput.length > 2))
-    ) {
-      let newData = this.newItem(this.state.input);
-
-      this.setState(
-        (prevState) => {
-          let currData = prevState.jenisSampah.filter(
-            (v) => v.id !== this.state.input,
-          );
-
-          return {
-            jenisSampah: currData,
-            inputData: [...prevState.inputData, newData],
-          };
-        },
-        () =>
-          this.setState((prevState) => {
-            if (prevState.jenisSampah.length > 0) {
-              return {input: this.state.jenisSampah[0].id, weightInput: ''};
-            }
-            return {weightInput: ''};
-          }),
-      );
-    } else {
-      ToastAndroid.show('Masukkan berat dengan benar!', 1000);
-    }
-  };
-
-  handleDeleteData = (index, item) => {
-    this.setState((prevState) => {
-      console.log('indexnya == ', index);
-      console.log('itemnya == ', item);
-      console.log('mulai hapus');
-      let arr = Array.from(prevState.inputData);
-
-      arr.splice(index, 1);
-      let arr1 = prevState.jenisSampah.concat(item);
-      console.log('state input data ==', prevState.inputData);
-
-      return {inputData: arr, jenisSampah: arr1};
-    });
-  };
-
-  handleSendData = () => {
-    if (this.state.inputData.length > 0) {
-      Alert.alert('Kirim Laporan', 'Pastikan data yang anda masukkan sesuai!', [
-        {
-          text: 'Batal',
-        },
-        {
-          text: 'Lanjutkan',
-          onPress: this.sendData,
-        },
-      ]);
-    } else {
-      ToastAndroid.show('Masukkan data anda dengan benar', 1200);
-    }
-  };
-
-  sendData = () => {
-    console.log('mulai kirim pendataan');
-
-    let form = new FormData();
-
-    this.state.inputData.forEach((element, index) => {
-      form.append(`sampah[${index}][sampah_id]`, element.id);
-      form.append(`sampah[${index}][berat]`, element.berat);
-    });
-
-    console.log('ini form pendataan == ', form);
-
-    fetch(endpoint.pengurus1_pendataan + this.state.request_id, {
-      method: 'POST',
-      body: form,
-      headers: {
-        Authorization: 'Bearer ' + this.props.user.token,
-      },
-    })
-      .then((res) => res.json())
-      .then((resJson) => {
-        console.log('ini resjson dari senddata', resJson);
-        if (resJson.status === 'success') {
-          this.setState({modalDataInput: false, inputData: []});
-          this.getPermintaan();
-          ToastAndroid.show('Data berhasil dikirim!', 1500);
-        }
-      })
-      .catch((e) => {
-        console.log('catch sendData', e);
-        ToastAndroid.show('Maaf, kirim data gagal', 1500);
-      });
-  };
-
-  totalPrice = () => {
-    let init = 0;
-
-    if (this.state.inputData.length > 0) {
-      this.state.inputData.forEach((v) => {
-        let hasil = v.berat * v.harga_nasabah;
-        init += hasil;
-      });
-      console.log('check reduce == ', init);
-    }
-
-    return init;
+    return contact;
   };
 
   render() {
-    const {avatar, name, email, no_telpon} = this.props.user.data;
+    const {avatar, name, no_telpon, email} = this.props.user.data;
     return (
-      <View style={styles.container}>
-        <StatusBar translucent backgroundColor={'#ffffff00'} />
+      <View style={styles.mainView}>
+        <StatusBar
+          translucent
+          barStyle={'light-content'}
+          backgroundColor={'#ffffff00'}
+        />
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => this.setState({modalProfile: true})}
-            activeOpacity={0.8}
-            style={styles.s_profile}>
-            <Image source={{uri: avatar}} style={styles.s_profile} />
-          </TouchableOpacity>
-          <Text style={styles.hi_text}> Hi {name}!</Text>
+          <View style={styles.headerProf}>
+            <TouchableOpacity
+              onPress={() => this.setState({modalProfile: true})}
+              activeOpacity={0.8}
+              style={styles.s_profile}>
+              <Image source={{uri: avatar}} style={styles.s_profile} />
+            </TouchableOpacity>
+            <Text numberOfLines={1} style={styles.hi_text}>
+              {' '}
+              Hi {name}!
+            </Text>
+          </View>
         </View>
-        <View style={styles.scrollViewCont}>
-          <ScrollView contentContainerStyle={styles.addressScroll}>
-            {this.state.allRequest.map((v, i) => {
+        <View style={styles.chatsCont}>
+          <View style={styles.chatHeaderCont}>
+            <Text style={styles.contactsTitle}>Chat Aktif</Text>
+          </View>
+          <ScrollView
+            style={{width: '100%'}}
+            contentContainerStyle={styles.contactsScroll}>
+            {this.state.active_contacts.map((v, i) => {
               return (
                 <TouchableOpacity
+                  onPress={() => this.openChat(v)}
                   activeOpacity={0.95}
                   style={styles.addressList}
                   key={i}>
-                  <View style={styles.addressListHead}>
-                    <Text style={styles.addressListNumber}>
-                      Permintaan {(i + 1).toString()}
-                    </Text>
-                    <AntDesign
-                      name={
-                        v.status === 1 ? 'exclamationcircle' : 'checkcircle'
-                      }
-                      color={v.status === 1 ? '#ff6c0a' : 'green'}
-                      size={25}
-                      onPress={() => {}}
-                    />
-                  </View>
-                  <Text>{v.tanggal}</Text>
-                  <Text>{v.nama}</Text>
-                  <Text>{v.no_telpon}</Text>
-                  <Text>{v.lokasi}</Text>
-                  <Text>{v.keterangan}</Text>
-                  <View style={styles.iconsCont}>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() =>
-                        this.setState({modalDataInput: true, request_id: v.id})
-                      }
-                      style={styles.dataButton}>
-                      <Text style={styles.dataText}> Pendataan </Text>
-                      <IonIcon
-                        style={styles.pencilIcon}
-                        name={'pencil'}
-                        color={'#e8e8e8'}
-                        size={19}
+                  <View style={styles.contactRow}>
+                    <View>
+                      <Text style={styles.addressListNumber}>
+                        Kontak {(i + 1).toString()}
+                      </Text>
+                      <Image
+                        source={{uri: v.avatar}}
+                        style={styles.s_profile}
                       />
-                    </TouchableOpacity>
+                      <Text>{v.name}</Text>
+                    </View>
+                    <IonIcon name={'chevron-forward'} size={55} />
                   </View>
                 </TouchableOpacity>
               );
             })}
+            {this.state.loadChat ? (
+              <ActivityIndicator color={'white'} size={'large'} />
+            ) : !this.state.loadChat && this.state.active_contacts.length < 1 ? (
+              <Text style={styles.no_message}>Tidak Ada Pesan</Text>
+            ) : (
+              <View />
+            )}
           </ScrollView>
+          <View style={styles.chatFooterCont}>
+            <TouchableOpacity
+              onPress={() => this.setState({modalContacts: true})}
+              activeOpacity={0.9}
+              style={styles.newChatCont}>
+              <Text style={styles.newChatText}>Buat Chat Baru</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        {/* ------Modal Pendataan------ */}
+        {/* ------Modal untuk Chat------ */}
         <Modal
           transparent={true}
-          visible={this.state.modalDataInput}
           statusBarTranslucent={true}
+          visible={this.state.modalChat}
           animationType={'fade'}
           onRequestClose={() =>
-            this.setState({
-              modalDataInput: false,
-              inputData: [],
-              jenisSampah: this.getChoices(),
-            })
+            this.setState({modalChat: false, currChat: [], currContact: {}})
           }>
-          <KeyboardAvoidingView
-            behavior={'padding'}
-            style={styles.dataScrollViewCont}>
-            <Text style={styles.addressListTitle}>Pendataan</Text>
-            <View style={styles.dataHeader}>
-              <Button
-                title={'Batal'}
-                color={'red'}
-                onPress={() =>
-                  this.setState({
-                    modalDataInput: false,
-                    inputData: [],
-                    jenisSampah: this.getChoices(),
-                  })
-                }
-              />
-              <Button
-                title={'Kirim'}
-                color={'blue'}
-                onPress={this.handleSendData}
-              />
-            </View>
-            <Text style={styles.totalPrice}>
-              Total : Rp.{this.totalPrice()}
-            </Text>
-            <View style={styles.dataListCont}>
-              <ScrollView contentContainerStyle={styles.dataScroll}>
-                {this.state.inputData.map((v, i) => {
-                  return (
+          <KeyboardAvoidingView behavior={'padding'} style={styles.chatNasCont}>
+            <ScrollView
+              ref={(ref) => {
+                this.scrollView = ref;
+              }}
+              onContentSizeChange={() =>
+                this.scrollView.scrollToEnd({animated: true})
+              }
+              contentContainerStyle={styles.contactsScroll}>
+              <Text style={styles.contactsTitle}>{this.activeCS()}</Text>
+              {this.state.currChat.map((v, i) => {
+                let pos =
+                  // eslint-disable-next-line eqeqeq
+                  v.from == this.props.user.data.id
+                    ? {alignItems: 'flex-end'}
+                    : {alignItems: 'flex-start'};
+
+                return (
+                  <View key={i} style={[styles.chatBubCont, pos]}>
                     <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={styles.addressList}
-                      key={i}>
-                      <View style={styles.addressListHead}>
-                        <Text style={styles.addressListNumber}>
-                          Data {(i + 1).toString()}
-                        </Text>
-                      </View>
-                      <Text>Jenis : {v.nama}</Text>
-                      <Text>Berat : {v.berat} kg</Text>
-                      <View style={styles.iconsCont}>
-                        <IonIcon
-                          style={styles.pencilIcon}
-                          name={'trash'}
-                          color={'red'}
-                          size={24}
-                          onPress={() => this.handleDeleteData(i, v)}
-                        />
-                      </View>
+                      onPress={() => {}}
+                      activeOpacity={0.95}
+                      style={styles.chatList}>
+                      <Text style={styles.addressListNumber}>{v.message}</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-            <View style={styles.dataInputs}>
-              <View style={styles.dataInputDetailsCont}>
-                <View style={styles.dataWeight}>
-                  <Text style={styles.DataTextLeft}>Jenis :</Text>
-                  <Picker
-                    selectedValue={this.state.input}
-                    style={styles.pickerTrash}
-                    onValueChange={(itemValue) =>
-                      this.setState({input: itemValue})
-                    }>
-                    {this.state.jenisSampah.map((v, i) => (
-                      <Picker.Item key={i} label={v.nama} value={v.id} />
-                    ))}
-                  </Picker>
-                </View>
-                <View style={styles.dataWeight}>
-                  <Text style={styles.DataTextLeft}>Berat :</Text>
-                  <TextInput
-                    value={this.state.weightInput}
-                    keyboardType={'number-pad'}
-                    onChangeText={(text) => this.setState({weightInput: text})}
-                    placeholder={'0'}
-                    style={styles.pickerWeight}
-                  />
-                  <Text>kg</Text>
-                </View>
-              </View>
+                  </View>
+                );
+              })}
+              {this.state.loadChat ? (
+                <ActivityIndicator color={'white'} size={'large'} />
+              ) : !this.state.loadChat && this.state.currChat.length < 1 ? (
+                <Text style={styles.no_message}>Tidak Ada Pesan</Text>
+              ) : (
+                <View />
+              )}
+            </ScrollView>
+            <View style={styles.chatInputCont}>
+              <TextInput
+                multiline
+                value={this.state.chat}
+                onChangeText={(text) => this.setState({chat: text})}
+                style={styles.chatInput}
+              />
               <TouchableOpacity
-                onPress={this.addData}
-                style={styles.addDataButton}>
-                <Text style={styles.addDataButtonText}> Tambah </Text>
-                <IonIcon name={'add-circle'} size={25} color={'green'} />
+                onPress={() => this.sendMessages(this.state.currContact.id)}
+                activeOpacity={0.9}
+                style={styles.sendButton}>
+                <Text style={styles.sendButtonText}>SEND</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* ------Modal untuk Kontak Semua Nasabah------ */}
+        <Modal
+          transparent={true}
+          statusBarTranslucent={true}
+          visible={this.state.modalContacts}
+          animationType={'fade'}
+          onRequestClose={() =>
+            this.setState({modalContacts: false, currChat: []})
+          }>
+          <View style={styles.nasConCont}>
+            <Text style={styles.contactsTitle}>Nasabah</Text>
+            <ScrollView
+              style={{width: '100%'}}
+              contentContainerStyle={styles.contactsScroll}>
+              {this.state.nas_contacts.map((v, i) => {
+                return (
+                  <TouchableOpacity
+                    onPress={() => this.openChat(v.user)}
+                    activeOpacity={0.95}
+                    style={styles.addressList}
+                    key={i}>
+                    <View style={styles.contactRow}>
+                      <View>
+                        <Text style={styles.addressListNumber}>
+                          Kontak {(i + 1).toString()}
+                        </Text>
+                        <Image
+                          source={{uri: v.user.avatar}}
+                          style={styles.s_profile}
+                        />
+                        <Text>{v.user.name}</Text>
+                      </View>
+                      <IonIcon name={'chevron-forward'} size={55} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              {this.state.loadChat ? (
+                <ActivityIndicator color={'white'} size={'large'} />
+              ) : !this.state.loadChat && this.state.nas_contacts.length < 1 ? (
+                <Text style={styles.no_message}>Tidak Ada Data</Text>
+              ) : (
+                <View />
+              )}
+            </ScrollView>
+          </View>
+        </Modal>
+
         {/* ------Modal untuk profile------ */}
         <Modal
           transparent={true}
@@ -569,7 +577,7 @@ class HomeCS extends Component {
               activeOpacity={1}
               style={styles.profileScrollCont}>
               <ScrollView contentContainerStyle={styles.addressScroll}>
-                <Text style={styles.profilTitle}>Profil</Text>
+                <Text style={styles.addressListTitle}>Profil</Text>
                 <View style={styles.b_profileCont}>
                   <TouchableOpacity
                     activeOpacity={0.8}
@@ -617,6 +625,7 @@ class HomeCS extends Component {
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
+
         {/* ------Modal untuk edit profile------ */}
         <Modal
           transparent={true}
@@ -692,61 +701,179 @@ class HomeCS extends Component {
             </ScrollView>
           </TouchableOpacity>
         </Modal>
-        {/* ------Modal untuk edit profile------ */}
-        <Modal
-          transparent={true}
-          visible={this.state.loading}
-          statusBarTranslucent={true}
-          animationType={'fade'}
-          onRequestClose={() => {}}>
-          <View style={styles.modalLoadingCont}>
-            <ActivityIndicator size={35} color={'green'} />
-          </View>
-        </Modal>
       </View>
     );
   }
 }
 
 const styles = StyleSheet.create({
-  profilTitle: {
-    fontSize: 23,
-    color: 'green',
+  no_message: {
+    fontSize: 20,
+    marginTop: 20,
     fontWeight: 'bold',
+  },
+  chatNasCont: {
+    flex: 1,
+    backgroundColor: 'green',
+    paddingTop: 30,
+  },
+  nasConCont: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 30,
+    backgroundColor: 'green',
+  },
+  chatHeaderCont: {
+    width: '100%',
+    alignItems: 'center',
+    elevation: 10,
+    justifyContent: 'center',
+  },
+  chatFooterCont: {
+    width: '100%',
+    alignItems: 'center',
+    elevation: 10,
+    justifyContent: 'center',
+  },
+  chatsCont: {
+    alignItems: 'center',
+    backgroundColor: 'green',
+    flex: 1,
+    padding: 5,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+  newChatCont: {
+    padding: 10,
+    backgroundColor: '#eee',
+    bottom: 5,
+    borderRadius: 5,
+    elevation: 5,
+  },
+  newChatText: {
+    fontSize: 20,
+    color: 'green',
+  },
+  chatList: {
+    width: '80%',
+    padding: 15,
+    backgroundColor: '#c2c2c2',
+    borderRadius: 10,
+    marginVertical: 5,
+    elevation: 4,
+  },
+  requestList: {
+    padding: 5,
+    margin: 10,
+    backgroundColor: '#efefef',
+    borderRadius: 5,
+  },
+  headerProf: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatCont: {
+    flex: 1,
+  },
+  sendButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  sendButton: {
+    marginLeft: 5,
+    height: 50,
+    backgroundColor: 'green',
+    padding: 5,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatInputCont: {
+    width: '100%',
+    maxHeight: 200,
+    padding: 5,
+    flexDirection: 'row',
+    backgroundColor: 'white',
+  },
+  chatInput: {
+    borderWidth: 1,
+    borderColor: 'green',
+    flex: 1,
+    borderRadius: 5,
+  },
+  chatBubCont: {
+    width: '100%',
     marginVertical: 5,
   },
-  container: {
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  contactsTitle: {
+    fontSize: 20,
+    marginBottom: 15,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  contactsScroll: {
+    flexGrow: 1,
+    padding: 5,
+    alignItems: 'center',
+  },
+  balanceTitle: {
+    color: '#333333',
+    fontSize: 16,
+  },
+  balance: {
+    fontSize: 27,
+    fontWeight: 'bold',
+    width: '80%',
+  },
+  balanceCont: {
+    width: '100%',
+    padding: 5,
+    marginBottom: 10,
+    justifyContent: 'center',
+  },
+  mainView: {
     flex: 1,
     backgroundColor: '#2e995594',
-    alignItems: 'center',
-    paddingTop: 35,
   },
   header: {
     width: '100%',
     padding: 5,
-    marginBottom: 15,
+    marginBottom: 5,
+    marginTop: 25,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  modalLoadingCont: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000000c7',
+    justifyContent: 'space-between',
   },
   s_profile: {
     width: 65,
     height: 65,
     borderRadius: 35,
   },
-  scrollViewCont: {
-    flex: 1,
-    width: '100%',
+  b_profileCont: {
+    paddingHorizontal: 30,
   },
-  dataScrollViewCont: {
-    flex: 1,
-    paddingTop: 25,
-    width: '100%',
-    backgroundColor: '#029739',
+  b_profile: {
+    width: 85,
+    height: 85,
+    borderRadius: 85,
+  },
+  editIcon: {
+    position: 'absolute',
+    right: 10,
+    bottom: 0,
+  },
+  hi_text: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333333',
+    width: '80%',
   },
   button: {
     backgroundColor: 'white',
@@ -761,37 +888,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#4d4d4d',
-  },
-  addressScroll: {
-    flexGrow: 1,
-    borderRadius: 10,
-    alignItems: 'center',
-    padding: 10,
-  },
-  scrollview: {
-    flexGrow: 1,
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    flexDirection: 'row',
-    padding: 15,
-  },
-  b_profileCont: {
-    paddingHorizontal: 30,
-  },
-  b_profile: {
-    width: 85,
-    height: 85,
-    borderRadius: 85,
-  },
-  editIcon: {
-    position: 'absolute',
-    right: 5,
-    bottom: 20,
-  },
-  hi_text: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333333',
   },
   buttonText: {
     fontSize: 16,
@@ -844,21 +940,30 @@ const styles = StyleSheet.create({
     width: '100%',
     marginVertical: 5,
   },
-  pickerTrash: {
-    width: 125,
+  picker: {
+    // height: 40,
+    // width: 150,
+    // margin: 10,
+    flex: 1,
   },
-  pickerWeight: {
-    width: 60,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'lightgreen',
-    marginHorizontal: 5,
-    textAlign: 'center',
+  addressScrollCont: {
+    height: 600,
+    marginHorizontal: 50,
+    marginVertical: 70,
+    borderRadius: 10,
+    backgroundColor: 'white',
+  },
+  addressScroll: {
+    padding: 10,
+    paddingBottom: 100,
+    alignItems: 'center',
+    borderRadius: 10,
+    flexGrow: 1,
   },
   addressList: {
     width: '100%',
-    padding: 10,
-    backgroundColor: '#ededed',
+    padding: 15,
+    backgroundColor: '#c2c2c2',
     borderRadius: 10,
     marginVertical: 5,
     elevation: 4,
@@ -871,7 +976,7 @@ const styles = StyleSheet.create({
     fontSize: 23,
     fontWeight: 'bold',
     marginBottom: 25,
-    color: 'white',
+    color: 'green',
     textAlign: 'center',
   },
   addressButton: {
@@ -953,15 +1058,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    position: 'absolute',
+    bottom: 0,
+    width: '70%',
     alignSelf: 'center',
   },
   addressListHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  pencilIcon: {},
+  trashIcon: {
+    marginTop: 15,
+  },
+  pencilIcon: {
+    marginTop: 15,
+  },
   iconsCont: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
   },
@@ -972,8 +1085,8 @@ const styles = StyleSheet.create({
     marginTop: 35,
     width: 80,
     height: 40,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
   requestScrollCont: {
@@ -982,76 +1095,7 @@ const styles = StyleSheet.create({
     marginVertical: 40,
     borderRadius: 10,
     backgroundColor: 'white',
-  },
-  dataButton: {
-    flexDirection: 'row',
-    padding: 3,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'green',
-  },
-  dataText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#e8e8e8',
-  },
-  addDataButton: {
-    flexDirection: 'row',
-    padding: 3,
-    paddingVertical: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#eee',
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: 'lightgreen',
-  },
-  addDataButtonText: {
-    fontWeight: 'bold',
-    color: 'green',
-  },
-  dataWeight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dataInputDetailsCont: {
-    flex: 1,
-  },
-  inputWeight: {
-    fontSize: 20,
-  },
-  DataTextLeft: {
-    fontSize: 16,
-  },
-  dataScroll: {
-    flexGrow: 1,
-    borderRadius: 10,
-    alignItems: 'center',
-    padding: 10,
-  },
-  dataListCont: {
-    flex: 1,
-  },
-  dataInputs: {
-    width: '100%',
-    padding: 10,
-    flexDirection: 'row',
-    backgroundColor: '#eee',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    alignItems: 'center',
-  },
-  dataHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 15,
-  },
-  totalPrice: {
-    fontSize: 24,
-    textAlign: 'center',
-    color: '#eee',
+    width: '90%',
   },
 });
 
